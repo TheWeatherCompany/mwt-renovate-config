@@ -1,0 +1,7 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  description: "Org-wide Renovate defaults for TheWeatherCompany. Repos extend this for baseline settings, and additionally extend named presets (e.g. `:otel-collector`) to opt into specific shared automation.",
+  extends: [
+    "config:recommended",
+  ],
+}
