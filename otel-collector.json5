@@ -8,8 +8,8 @@
       // (terraform/compute/services/otel-collector/environments/{dev,stg,prod}.tfvars).
       // Public upstream (open-telemetry Helm repo) - no gating needed.
       customType: "regex",
-      fileMatch: [
-        "^terraform/compute/services/otel-collector/environments/.*\\.tfvars$",
+      managerFilePatterns: [
+        "/^terraform/compute/services/otel-collector/environments/.*\\.tfvars$/",
       ],
       matchStrings: [
         "helm_chart_version\\s*=\\s*\"(?<currentValue>[^\"]+)\"",
@@ -24,8 +24,8 @@
       // (same tfvars files as above, separate knob).
       // Public upstream (Docker Hub) - no gating needed.
       customType: "regex",
-      fileMatch: [
-        "^terraform/compute/services/otel-collector/environments/.*\\.tfvars$",
+      managerFilePatterns: [
+        "/^terraform/compute/services/otel-collector/environments/.*\\.tfvars$/",
       ],
       matchStrings: [
         "collector_image_tag\\s*=\\s*\"(?<currentValue>[^\"]+)\"",
@@ -45,8 +45,8 @@
       // that version's RPM to S3. This prevents proposing a version that
       // installOpenTelemetry.sh would 404 on at deploy time.
       customType: "regex",
-      fileMatch: [
-        "(^|/)otel-[a-zA-Z0-9_-]*\\.json$",
+      managerFilePatterns: [
+        "/(^|/)otel-[a-zA-Z0-9_-]*\\.json$/",
       ],
       matchStrings: [
         "\"collector_version\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"",
@@ -61,8 +61,8 @@
       // default instead of a JSON config (modules/perforce-server/variables.tf).
       // Same gated datasource as the JSON manager above.
       customType: "regex",
-      fileMatch: [
-        "^modules/perforce-server/variables\\.tf$",
+      managerFilePatterns: [
+        "/^modules/perforce-server/variables\\.tf$/",
       ],
       matchStrings: [
         "variable\\s+\"otel_collector_version\"\\s*\\{[\\s\\S]*?default\\s*=\\s*\"(?<currentValue>[^\"]+)\"",
