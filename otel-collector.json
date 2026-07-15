@@ -71,14 +71,14 @@
     {
       "description": "Staging-tier files: let dev soak for about a week first.",
       "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm"],
-      "matchFileNames": ["**/stg.tfvars", "**/*-stg-*", "**/*stg*.json", "**/*staging*"],
+      "matchFileNames": ["**/stg*.tfvars", "**/staging*.tfvars", "**/*-stg-*", "**/*stg*.json", "**/*staging*"],
       "minimumReleaseAge": "7 days",
       "groupName": "otel-collector (staging)"
     },
     {
       "description": "Dev-tier files: propose immediately, no soak required.",
       "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm"],
-      "matchFileNames": ["**/dev.tfvars", "**/*-dev-*", "**/*dev*.json"],
+      "matchFileNames": ["**/dev*.tfvars", "**/*-dev-*", "**/*dev*.json"],
       "minimumReleaseAge": "0 days",
       "groupName": "otel-collector (dev)"
     },
