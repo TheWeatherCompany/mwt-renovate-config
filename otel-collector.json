@@ -4,10 +4,10 @@
 
   "customManagers": [
     {
-      "description": "mwt-ee-deploy: Helm chart version for the EKS otel-collector deployment (terraform/compute/services/otel-collector/environments/{dev,stg,prod}.tfvars). Public upstream (open-telemetry Helm repo) - no gating needed.",
+      "description": "Any repo's Helm-chart-managed EKS otel-collector deployment - matches any path containing otel-collector/environments/<file>.tfvars, regardless of what precedes it (mwt-ee-deploy uses terraform/compute/services/..., mwt-ewb-deploy uses infra/...). Public upstream (open-telemetry Helm repo) - no gating needed.",
       "customType": "regex",
       "managerFilePatterns": [
-        "/^terraform/compute/services/otel-collector/environments/.*\\.tfvars$/"
+        "/(^|/)otel-collector/environments/[^/]+\\.tfvars$/"
       ],
       "matchStrings": [
         "helm_chart_version\\s*=\\s*\"(?<currentValue>[^\"]+)\""
@@ -18,10 +18,10 @@
       "datasourceTemplate": "helm"
     },
     {
-      "description": "mwt-ee-deploy: otelcol-contrib image tag baked into the Helm values (same tfvars files as above, separate knob). Public upstream (Docker Hub) - no gating needed.",
+      "description": "otelcol-contrib image tag baked into the Helm values (same tfvars files as above, separate knob). Public upstream (Docker Hub) - no gating needed.",
       "customType": "regex",
       "managerFilePatterns": [
-        "/^terraform/compute/services/otel-collector/environments/.*\\.tfvars$/"
+        "/(^|/)otel-collector/environments/[^/]+\\.tfvars$/"
       ],
       "matchStrings": [
         "collector_image_tag\\s*=\\s*\"(?<currentValue>[^\"]+)\""
@@ -69,16 +69,16 @@
       "groupName": "otel-collector (prod)"
     },
     {
-      "description": "Staging-tier files: let dev soak for about a week first.",
+      "description": "Staging-tier files: let dev soak for about a week first. Broad substring match (not prefix/suffix-anchored) since environment naming varies by repo: stg.tfvars, stg-blue.tfvars, stage.tfvars, staging.tfvars, etc. all qualify. Scope is already narrowed by each customManager's managerFilePatterns above, so a broad match here is safe.",
       "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm"],
-      "matchFileNames": ["**/stg*.tfvars", "**/staging*.tfvars", "**/*-stg-*", "**/*stg*.json", "**/*staging*"],
+      "matchFileNames": ["**/*stg*", "**/*stage*", "**/*staging*"],
       "minimumReleaseAge": "7 days",
       "groupName": "otel-collector (staging)"
     },
     {
-      "description": "Dev-tier files: propose immediately, no soak required.",
+      "description": "Dev-tier files: propose immediately, no soak required. Broad substring match, same reasoning as the staging rule above.",
       "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm"],
-      "matchFileNames": ["**/dev*.tfvars", "**/*-dev-*", "**/*dev*.json"],
+      "matchFileNames": ["**/*dev*"],
       "minimumReleaseAge": "0 days",
       "groupName": "otel-collector (dev)"
     },
