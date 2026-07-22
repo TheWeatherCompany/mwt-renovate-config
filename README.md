@@ -31,16 +31,21 @@ with that token already live in `~/.npmrc`. Renovate shells out to real
 `npm`/`yarn` commands to regenerate lockfiles, so it picks the token up
 the same way any local `npm install` would.
 
-**Two prerequisites this workflow does not (and cannot) set up on its
-own:**
+**Prerequisite this workflow does not (and cannot) set up on its own:**
+`secrets.RENOVATE_GITHUB_TOKEN` - a PAT (or fine-grained token) with
+`contents:write` + `pull-requests:write` on all five repos above. The
+default `GITHUB_TOKEN` is scoped to only this repo. (Already set as of
+2026-07-22.)
 
-1. `secrets.RENOVATE_GITHUB_TOKEN` - a PAT (or fine-grained token) with
-   `contents:write` + `pull-requests:write` on all five repos above. The
-   default `GITHUB_TOKEN` is scoped to only this repo.
-2. The hosted Renovate GitHub App must be uninstalled/excluded for those
-   five repos, or both it and this workflow will run and open duplicate
-   PRs. That's an org-level GitHub App installation setting - needs org
-   admin access to change.
+**Avoiding duplicate PRs with the hosted app** doesn't need an org-level
+GitHub App installation change: each of the five repos' own
+`renovate.json` sets `"enabled": false`, which the hosted app reads and
+respects (it skips repos with `enabled: false`, same as any other
+Renovate runner would). This workflow overrides that via
+`RENOVATE_FORCE: '{"enabled": true}'` - Renovate's global `force` config
+always takes precedence over a repo's own config, so this run still
+processes them despite the flag, while the hosted app - which has no such
+override - does not.
 
 ## Background
 
