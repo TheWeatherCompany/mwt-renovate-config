@@ -2,7 +2,45 @@
 
 Shared Renovate presets for TheWeatherCompany. Currently holds one preset,
 `otel-collector`, which keeps OpenTelemetry Collector version pins in sync
-across every repo that deploys or installs the collector.
+across every repo that deploys or installs the collector. Also runs a
+self-hosted Renovate workflow (`.github/workflows/renovate.yml`) for the
+`mwt-ee-*` repos - see "Self-hosted Renovate for CodeArtifact repos" below.
+
+## Self-hosted Renovate for CodeArtifact repos
+
+The org-wide hosted Renovate GitHub App can't authenticate to our private
+CodeArtifact npm registry (`engage-npm`) - it runs on Mend's infrastructure
+with no AWS credentials, and CodeArtifact tokens are STS-based with a
+~12h max TTL, so a static secret would go stale with no way for the
+hosted app to refresh it. Every Renovate PR against `mwt-ee-echo`,
+`mwt-ee-dispatcher`, `mwt-ee-helios`, `mwt-ee-sonar`, and
+`mwt-ee-engage-shared` was resolving npm packages via `registry.npmjs.org`
+instead, silently drifting the lockfile's `resolved:` URLs away from what
+CI/CD actually installs from.
+
+`.github/workflows/renovate.yml` self-hosts Renovate for just those five
+repos instead: each run (every 6h, or on demand) assumes
+`arn:aws:iam::372500853281:role/renovate-codeartifact-token` via OIDC (a
+role scoped to only `codeartifact:GetAuthorizationToken`/
+`GetRepositoryEndpoint`/`ReadFromRepository` on the `engage`/`engage-npm`
+domain/repository - deliberately not reusing `mwt-ee-deploy`'s
+`github-actions-deploy` role, which also carries Terraform state, ECR, and
+IAM management permissions this doesn't need), fetches a fresh token via
+`aws codeartifact login --tool npm`, and runs `renovatebot/github-action`
+with that token already live in `~/.npmrc`. Renovate shells out to real
+`npm`/`yarn` commands to regenerate lockfiles, so it picks the token up
+the same way any local `npm install` would.
+
+**Two prerequisites this workflow does not (and cannot) set up on its
+own:**
+
+1. `secrets.RENOVATE_GITHUB_TOKEN` - a PAT (or fine-grained token) with
+   `contents:write` + `pull-requests:write` on all five repos above. The
+   default `GITHUB_TOKEN` is scoped to only this repo.
+2. The hosted Renovate GitHub App must be uninstalled/excluded for those
+   five repos, or both it and this workflow will run and open duplicate
+   PRs. That's an org-level GitHub App installation setting - needs org
+   admin access to change.
 
 ## Background
 

@@ -1,0 +1,78 @@
+name: Renovate (self-hosted, CodeArtifact-aware)
+
+# Hosted Renovate (the app/renovate GitHub App) can't authenticate to our
+# private CodeArtifact npm registry - it runs on Mend's own infrastructure
+# with no AWS credentials, and CodeArtifact tokens are STS-based with a
+# ~12h max TTL, so a static secret in Renovate's own config would go stale
+# on its own with no way for Mend's hosted app to refresh it. Every
+# Renovate-opened npm PR on these repos was resolving packages via
+# registry.npmjs.org instead of CodeArtifact as a result.
+#
+# This workflow self-hosts Renovate for just the affected repos instead:
+# each run assumes a narrowly-scoped OIDC role (renovate-codeartifact-token,
+# granted only codeartifact:GetAuthorizationToken/GetRepositoryEndpoint/
+# ReadFromRepository on the engage domain/engage-npm repository - see
+# mwt-ee-deploy's github-actions-deploy role for contrast, which this
+# intentionally does NOT reuse since it also carries Terraform state,
+# ECR, and IAM management permissions this workflow doesn't need), fetches
+# a FRESH token via `aws codeartifact login`, and runs Renovate with that
+# token already live in ~/.npmrc. Renovate shells out to real npm/yarn
+# commands to regenerate lockfiles, so it picks the token up the same way
+# any local `npm install` would - no hostRules/secrets templating needed.
+#
+# PREREQUISITE - the hosted Renovate GitHub App must be uninstalled/
+# excluded for the repos listed in RENOVATE_REPOSITORIES below, or both
+# will run and open duplicate PRs. That's an org-level GitHub App
+# installation setting; needs org admin access to change.
+#
+# PREREQUISITE - secrets.RENOVATE_GITHUB_TOKEN: a PAT (or fine-grained
+# token) with contents:write + pull-requests:write on every repo in
+# RENOVATE_REPOSITORIES. The default GITHUB_TOKEN is scoped to only this
+# repo, not the targets.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # every 6h - comfortably inside CodeArtifact's ~12h token TTL
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required for aws-actions/configure-aws-credentials OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  CODEARTIFACT_DOMAIN: engage
+  CODEARTIFACT_OWNER: "372500853281"
+  CODEARTIFACT_REPOSITORY: engage-npm
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::372500853281:role/renovate-codeartifact-token
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to CodeArtifact (writes a fresh token into ~/.npmrc)
+        run: |
+          aws codeartifact login \
+            --tool npm \
+            --domain "$CODEARTIFACT_DOMAIN" \
+            --domain-owner "$CODEARTIFACT_OWNER" \
+            --repository "$CODEARTIFACT_REPOSITORY" \
+            --region "$AWS_REGION"
+
+      - uses: renovatebot/github-action@v46
+        env:
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_GITHUB_TOKEN }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_AUTODISCOVER: false
+          RENOVATE_REPOSITORIES: >-
+            ["TheWeatherCompany/mwt-ee-echo",
+            "TheWeatherCompany/mwt-ee-dispatcher",
+            "TheWeatherCompany/mwt-ee-helios",
+            "TheWeatherCompany/mwt-ee-sonar",
+            "TheWeatherCompany/mwt-ee-engage-shared"]
+          LOG_LEVEL: info
