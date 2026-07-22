@@ -15,10 +15,15 @@ name: Renovate (self-hosted, CodeArtifact-aware)
 # mwt-ee-deploy's github-actions-deploy role for contrast, which this
 # intentionally does NOT reuse since it also carries Terraform state,
 # ECR, and IAM management permissions this workflow doesn't need), fetches
-# a FRESH token via `aws codeartifact login`, and runs Renovate with that
-# token already live in ~/.npmrc. Renovate shells out to real npm/yarn
-# commands to regenerate lockfiles, so it picks the token up the same way
-# any local `npm install` would - no hostRules/secrets templating needed.
+# a FRESH token via `aws codeartifact login`, and hands that .npmrc's
+# content to Renovate via RENOVATE_NPMRC. Writing ~/.npmrc to disk alone
+# is NOT enough - Renovate's own npm datasource (the lookup that decides
+# what version to bump *to*, separate from the actual npm/yarn shell-out
+# that regenerates the rest of the lockfile) doesn't read the on-disk
+# npmrc, only RENOVATE_NPMRC/hostRules. Confirmed by a first run without
+# this: transitive deps resolved through CodeArtifact correctly (via the
+# real npm/yarn invocation, which does read ~/.npmrc), but the actual
+# bumped package's resolved: URL still came back from registry.npmjs.org.
 #
 # Avoiding duplicate PRs with the hosted app doesn't need an org-level
 # GitHub App installation change: each target repo's own renovate.json
@@ -56,7 +61,7 @@ jobs:
           role-to-assume: arn:aws:iam::372500853281:role/renovate-codeartifact-token
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Log in to CodeArtifact (writes a fresh token into ~/.npmrc)
+      - name: Log in to CodeArtifact and export the token for Renovate
         run: |
           aws codeartifact login \
             --tool npm \
@@ -64,6 +69,30 @@ jobs:
             --domain-owner "$CODEARTIFACT_OWNER" \
             --repository "$CODEARTIFACT_REPOSITORY" \
             --region "$AWS_REGION"
+
+          TOKEN=$(aws codeartifact get-authorization-token \
+            --domain "$CODEARTIFACT_DOMAIN" \
+            --domain-owner "$CODEARTIFACT_OWNER" \
+            --region "$AWS_REGION" \
+            --query authorizationToken --output text)
+          echo "::add-mask::$TOKEN"
+
+          ENDPOINT=$(aws codeartifact get-repository-endpoint \
+            --domain "$CODEARTIFACT_DOMAIN" \
+            --domain-owner "$CODEARTIFACT_OWNER" \
+            --repository "$CODEARTIFACT_REPOSITORY" \
+            --format npm \
+            --region "$AWS_REGION" \
+            --query repositoryEndpoint --output text)
+          HOST=$(echo "$ENDPOINT" | sed -E 's#^https?://##')
+
+          {
+            echo "RENOVATE_NPMRC<<NPMRC_EOF"
+            echo "registry=${ENDPOINT}"
+            echo "//${HOST}:_authToken=${TOKEN}"
+            echo "always-auth=true"
+            echo "NPMRC_EOF"
+          } >> "$GITHUB_ENV"
 
       - uses: renovatebot/github-action@v46.1.20
         env:

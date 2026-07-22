@@ -25,11 +25,15 @@ role scoped to only `codeartifact:GetAuthorizationToken`/
 `GetRepositoryEndpoint`/`ReadFromRepository` on the `engage`/`engage-npm`
 domain/repository - deliberately not reusing `mwt-ee-deploy`'s
 `github-actions-deploy` role, which also carries Terraform state, ECR, and
-IAM management permissions this doesn't need), fetches a fresh token via
-`aws codeartifact login --tool npm`, and runs `renovatebot/github-action`
-with that token already live in `~/.npmrc`. Renovate shells out to real
-`npm`/`yarn` commands to regenerate lockfiles, so it picks the token up
-the same way any local `npm install` would.
+IAM management permissions this doesn't need), fetches a fresh token, and
+passes it to Renovate via `RENOVATE_NPMRC` before running
+`renovatebot/github-action`. Writing the token to `~/.npmrc` alone isn't
+enough - confirmed on the first live run: Renovate's own npm datasource
+(the lookup that decides what version to bump *to*) doesn't read the
+on-disk npmrc, only `RENOVATE_NPMRC`/`hostRules` - so transitive deps
+resolved through CodeArtifact correctly (via the real npm/yarn shell-out,
+which does read `~/.npmrc`), but the actual bumped package's `resolved:`
+URL still came from `registry.npmjs.org`. `RENOVATE_NPMRC` fixes both.
 
 **Prerequisite this workflow does not (and cannot) set up on its own:**
 `secrets.RENOVATE_GITHUB_TOKEN` - a PAT (or fine-grained token) with
