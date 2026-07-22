@@ -111,4 +111,9 @@ jobs:
           # precedence over repo-level config, so this run still processes
           # them despite that flag.
           RENOVATE_FORCE: '{"enabled": true}'
+          # config:base's default prHourlyLimit (2) meant only 2 of a
+          # backlog of pending updates opened per run, deferring the rest
+          # to the next run. 0 = unlimited - this workflow only runs every
+          # 6h across 5 repos, so there's no need to throttle within a run.
+          RENOVATE_PR_HOURLY_LIMIT: "0"
           LOG_LEVEL: info
