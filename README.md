@@ -102,6 +102,16 @@ this repo's `default` preset too:
 | Collector image tag | `mwt-ee-deploy` | same tfvars (`collector_image_tag`) | `docker` (public) | No |
 | Per-app EC2 agent config | `mwt-config-api`, `mwt-forecasteditor-api`, `mwt-forecasteditor-ui`, `mwt-widgets`, `mwt-headlines`, `mwt-headlines-api`, `wsi-media-push`, `wsi-media-subscriptions-api`, `wsi-media-subscriptions-reader`, `wsi-media-notification-tracking-reader`, `mwt-push-precipgrid` | `**/otel-*.json` (`collector_version`) | `github-releases` on `TheWeatherCompany/mwt-observability` | **Yes** — only proposes a version once its RPM is mirrored to S3 |
 | Perforce EC2 agent | `mwt-perforce-deploy` | `modules/perforce-server/variables.tf` (`otel_collector_version` default) | same gated datasource | **Yes** |
+| ADOT sidecar image (tag and digest) | `twc-maxcloud/max-ondemand-skybase` | `modules/{pgdog,pgcat}/variables.tf` (`otel_image` default) | `docker` on ECR Public | No |
+
+The ADOT row only matches an `otel_image` default that already carries a
+digest (`...aws-otel-collector:vX.Y.Z@sha256:...`); Renovate bumps both
+parts together. ECR Public gives Renovate no release timestamps, so this
+dependency skips the tiered soak (`minimumReleaseAgeBehaviour:
+timestamp-optional`); without that, every bump would sit as pending
+forever. `max-ondemand-skybase` lives in the `twc-maxcloud` org and has no
+`renovate.json` yet, so it needs the same onboarding as rows 3 and 4, plus a
+Renovate identity with access to that org.
 
 Each of the repos in row 3/4 needs its own onboarding PR adding the
 `extends` block above — not done yet, this repo only holds the shared
