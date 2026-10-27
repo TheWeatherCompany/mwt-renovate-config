@@ -2,54 +2,25 @@
 
 Shared Renovate presets for TheWeatherCompany. Currently holds one preset,
 `otel-collector`, which keeps OpenTelemetry Collector version pins in sync
-across every repo that deploys or installs the collector. Also runs a
-self-hosted Renovate workflow (`.github/workflows/renovate.yml`) for the
-`mwt-ee-*` repos - see "Self-hosted Renovate for CodeArtifact repos" below.
+across every repo that deploys or installs the collector.
 
-## Self-hosted Renovate for CodeArtifact repos
+## The mwt-ee-* app repos use Dependabot
 
-The org-wide hosted Renovate GitHub App can't authenticate to our private
-CodeArtifact npm registry (`engage-npm`) - it runs on Mend's infrastructure
-with no AWS credentials, and CodeArtifact tokens are STS-based with a
-~12h max TTL, so a static secret would go stale with no way for the
-hosted app to refresh it. Every Renovate PR against `mwt-ee-echo`,
-`mwt-ee-dispatcher`, `mwt-ee-helios`, `mwt-ee-sonar`, and
-`mwt-ee-engage-shared` was resolving npm packages via `registry.npmjs.org`
-instead, silently drifting the lockfile's `resolved:` URLs away from what
-CI/CD actually installs from.
+`mwt-ee-echo`, `mwt-ee-dispatcher`, `mwt-ee-helios`, `mwt-ee-sonar` and
+`mwt-ee-engage-shared` install npm packages from the private CodeArtifact
+registry `engage-npm`. The hosted Renovate app can't sign in to it:
+CodeArtifact tokens last at most 12 hours, and the app has no AWS
+credentials to fetch new ones.
 
-`.github/workflows/renovate.yml` self-hosts Renovate for just those five
-repos instead: each run (every 6h, or on demand) assumes
-`arn:aws:iam::372500853281:role/renovate-codeartifact-token` via OIDC (a
-role scoped to only `codeartifact:GetAuthorizationToken`/
-`GetRepositoryEndpoint`/`ReadFromRepository` on the `engage`/`engage-npm`
-domain/repository - deliberately not reusing `mwt-ee-deploy`'s
-`github-actions-deploy` role, which also carries Terraform state, ECR, and
-IAM management permissions this doesn't need), fetches a fresh token, and
-passes it to Renovate via `RENOVATE_NPMRC` before running
-`renovatebot/github-action`. Writing the token to `~/.npmrc` alone isn't
-enough - confirmed on the first live run: Renovate's own npm datasource
-(the lookup that decides what version to bump *to*) doesn't read the
-on-disk npmrc, only `RENOVATE_NPMRC`/`hostRules` - so transitive deps
-resolved through CodeArtifact correctly (via the real npm/yarn shell-out,
-which does read `~/.npmrc`), but the actual bumped package's `resolved:`
-URL still came from `registry.npmjs.org`. `RENOVATE_NPMRC` fixes both.
-
-**Prerequisite this workflow does not (and cannot) set up on its own:**
-`secrets.RENOVATE_GITHUB_TOKEN` - a PAT (or fine-grained token) with
-`contents:write` + `pull-requests:write` on all five repos above. The
-default `GITHUB_TOKEN` is scoped to only this repo. (Already set as of
-2026-07-22.)
-
-**Avoiding duplicate PRs with the hosted app** doesn't need an org-level
-GitHub App installation change: each of the five repos' own
-`renovate.json` sets `"enabled": false`, which the hosted app reads and
-respects (it skips repos with `enabled: false`, same as any other
-Renovate runner would). This workflow overrides that via
-`RENOVATE_FORCE: '{"enabled": true}'` - Renovate's global `force` config
-always takes precedence over a repo's own config, so this run still
-processes them despite the flag, while the hosted app - which has no such
-override - does not.
+This repo used to run Renovate for those five repos itself, from a
+scheduled workflow. GitHub disabled it on 2026-09-21 (a public repo's
+schedules stop after 60 days without commits), and it was removed on
+2026-10-27. The five repos now use Dependabot (`.github/dependabot.yml`),
+which signs in to `engage-npm` with OIDC as `dependabot-codeartifact-read`
+(mwt-ee-deploy `terraform/github-actions-oidc`) and uses `replaces-base`,
+so lockfiles keep resolving from CodeArtifact. Their `renovate.json` keeps
+`"enabled": false`, so the hosted app doesn't open PRs alongside
+Dependabot.
 
 ## Background
 
