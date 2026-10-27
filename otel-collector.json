@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": "Keeps OpenTelemetry Collector version pins in sync across TheWeatherCompany repos. A repo opts in by adding to its renovate.json: \"extends\": [\"github>TheWeatherCompany/mwt-renovate-config:otel-collector\"]. See README.md for which repos/files this is meant to cover and why.",
+  "timezone": "America/New_York",
 
   "customManagers": [
     {
@@ -45,10 +46,10 @@
       "extractVersionTemplate": "^otel-collector-v(?<version>.*)$"
     },
     {
-      "description": "mwt-perforce-deploy: same RPM as above, pinned as a Terraform variable default instead of a JSON config (modules/perforce-server/variables.tf). Same gated datasource as the JSON manager above.",
+      "description": "mwt-perforce-deploy: same RPM as above, pinned as a Terraform variable default instead of a JSON config (terraform/modules/perforce-server/variables.tf). Same gated datasource as the JSON manager above.",
       "customType": "regex",
       "managerFilePatterns": [
-        "/^modules/perforce-server/variables\\.tf$/"
+        "/(^|/)modules/perforce-server/variables\\.tf$/"
       ],
       "matchStrings": [
         "variable\\s+\"otel_collector_version\"\\s*\\{[\\s\\S]*?default\\s*=\\s*\"(?<currentValue>[^\"]+)\""
@@ -62,7 +63,7 @@
 
   "packageRules": [
     {
-      "description": "Ordered broadest-first: Renovate merges packageRules in order, later rules override earlier ones on conflicting keys, so more specific tiers below must come after this one to win. Default: treat any file not matched below as prod-tier. Longer soak, and never automerge an OTel Collector bump anywhere - a human always reviews the PR before it ships.",
+      "description": "Ordered broadest-first: Renovate merges packageRules in order, later rules override earlier ones on conflicting keys, so more specific tiers below must come after this one to win. Default: treat any file not matched below as prod-tier. Longer soak, and no automerge: the last two rules turn it on only where a merge cannot reach prod.",
       "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm"],
       "minimumReleaseAge": "14 days",
       "automerge": false,
@@ -87,6 +88,25 @@
       "matchDepNames": ["otel-collector-rpm"],
       "matchCurrentValue": "/^(0\\.150\\.1|0\\.132\\.0)$/",
       "minimumReleaseAge": "0 days"
+    },
+    {
+      "description": "EC2 app configs (otel-*.json): automerge. These PRs target the repo's default branch (dev) after the prod-tier soak, and the new version reaches prod only with the app's next release. internalChecksAsSuccess because some of these repos run no CI on the PR, so Renovate's own stability check is the only one, and by default Renovate does not count it. Merges only on weekday working hours, when someone is around to notice.",
+      "matchDepNames": ["otel-collector-rpm"],
+      "matchFileNames": ["**/otel-*.json"],
+      "automerge": true,
+      "internalChecksAsSuccess": true,
+      "automergeSchedule": ["* 9-15 * * 1-4"]
+    },
+    {
+      "description": "mwt-ee-deploy dev and staging tfvars: automerge. A merge rolls nothing, since non-prod lanes deploy by workflow dispatch. Prod tfvars, mwt-ewb-deploy's gitops pins (Argo deploys from them) and mwt-perforce-deploy stay manual.",
+      "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image"],
+      "matchFileNames": [
+        "terraform/compute/services/otel-collector/environments/dev*.tfvars",
+        "terraform/compute/services/otel-collector/environments/stg*.tfvars"
+      ],
+      "automerge": true,
+      "internalChecksAsSuccess": true,
+      "automergeSchedule": ["* 9-15 * * 1-4"]
     }
   ]
 }
