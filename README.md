@@ -72,12 +72,30 @@ this repo's `default` preset too:
 | Helm chart version | `mwt-ee-deploy` | `terraform/compute/services/otel-collector/environments/{dev,stg,prod}.tfvars` (`helm_chart_version`) | `helm` (public) | No |
 | Collector image tag | `mwt-ee-deploy` | same tfvars (`collector_image_tag`) | `docker` (public) | No |
 | Per-app EC2 agent config | `mwt-config-api`, `mwt-forecasteditor-api`, `mwt-forecasteditor-ui`, `mwt-widgets`, `mwt-headlines`, `mwt-headlines-api`, `wsi-media-push`, `wsi-media-subscriptions-api`, `wsi-media-subscriptions-reader`, `wsi-media-notification-tracking-reader`, `mwt-push-precipgrid` | `**/otel-*.json` (`collector_version`) | `github-releases` on `TheWeatherCompany/mwt-observability` | **Yes** — only proposes a version once its RPM is mirrored to S3 |
-| Perforce EC2 agent | `mwt-perforce-deploy` | `modules/perforce-server/variables.tf` (`otel_collector_version` default) | same gated datasource | **Yes** |
+| Perforce EC2 agent | `mwt-perforce-deploy` | `terraform/modules/perforce-server/variables.tf` (`otel_collector_version` default) | same gated datasource | **Yes** |
 
 Each of the repos in row 3/4 needs its own onboarding PR adding the
 `extends` block above — not done yet, this repo only holds the shared
 preset. Ping the observability channel before onboarding widely; the first
 run should be watched.
+
+## Automerge
+
+Renovate merges a collector bump by itself only where the merge cannot reach
+prod:
+
+| Files | Automerge | Why |
+|---|---|---|
+| `**/otel-*.json` (EC2 apps) | Yes | The PR targets the default branch (`dev`) after the 14-day soak. Prod gets the version only with the app's next release. |
+| `mwt-ee-deploy` dev and stg tfvars | Yes | A merge rolls nothing: non-prod lanes deploy by workflow dispatch. |
+| `mwt-ee-deploy` prod tfvars | No | Merged with the prod rollout and its change request. |
+| `mwt-ewb-deploy` gitops pins | No | Argo deploys from these files. |
+| `mwt-perforce-deploy` | No | Prod servers, and the variable default also feeds servers outside this rollout. |
+
+Automerge waits for every check on the PR to pass. `internalChecksAsSuccess`
+lets Renovate's own stability check count, because some of these repos run no
+CI on the PR. Merges happen only Monday to Thursday, 09:00 to 16:00
+America/New_York (`automergeSchedule`).
 
 ## Prerequisite
 
