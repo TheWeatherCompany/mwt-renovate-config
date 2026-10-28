@@ -58,27 +58,40 @@
       "datasourceTemplate": "github-releases",
       "packageNameTemplate": "TheWeatherCompany/mwt-observability",
       "extractVersionTemplate": "^otel-collector-v(?<version>.*)$"
+    },
+    {
+      "description": "AWS Distro for OpenTelemetry (ADOT) collector image pinned by tag and digest as a Terraform variable default named otel_image, e.g. max-ondemand-skybase modules/pgdog/variables.tf and modules/pgcat/variables.tf (the pgdog and pgcat ECS metrics sidecars). Renovate replaces the tag and the digest together. Only matches a default that already carries a digest, so a tag-only default is left alone rather than tracked without one. Public upstream (ECR Public), no gating needed.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)modules/[^/]+/variables\\.tf$/"
+      ],
+      "matchStrings": [
+        "variable\\s+\"otel_image\"\\s*\\{[^}]*?default\\s*=\\s*\"public\\.ecr\\.aws/aws-observability/aws-otel-collector:(?<currentValue>[^\"@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "depNameTemplate": "otel-collector-adot-image",
+      "packageNameTemplate": "public.ecr.aws/aws-observability/aws-otel-collector",
+      "datasourceTemplate": "docker"
     }
   ],
 
   "packageRules": [
     {
       "description": "Ordered broadest-first: Renovate merges packageRules in order, later rules override earlier ones on conflicting keys, so more specific tiers below must come after this one to win. Default: treat any file not matched below as prod-tier. Longer soak, and no automerge: the last two rules turn it on only where a merge cannot reach prod.",
-      "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm"],
+      "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm", "otel-collector-adot-image"],
       "minimumReleaseAge": "14 days",
       "automerge": false,
       "groupName": "otel-collector (prod)"
     },
     {
       "description": "Staging-tier files: let dev soak for about a week first. Broad substring match (not prefix/suffix-anchored) since environment naming varies by repo: stg.tfvars, stg-blue.tfvars, stage.tfvars, staging.tfvars, etc. all qualify. Scope is already narrowed by each customManager's managerFilePatterns above, so a broad match here is safe.",
-      "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm"],
+      "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm", "otel-collector-adot-image"],
       "matchFileNames": ["**/*stg*", "**/*stage*", "**/*staging*"],
       "minimumReleaseAge": "7 days",
       "groupName": "otel-collector (staging)"
     },
     {
       "description": "Dev-tier files: propose immediately, no soak required. Broad substring match, same reasoning as the staging rule above.",
-      "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm"],
+      "matchDepNames": ["otel-collector-helm-chart", "otel-collector-image", "otel-collector-rpm", "otel-collector-adot-image"],
       "matchFileNames": ["**/*dev*"],
       "minimumReleaseAge": "0 days",
       "groupName": "otel-collector (dev)"
@@ -88,6 +101,11 @@
       "matchDepNames": ["otel-collector-rpm"],
       "matchCurrentValue": "/^(0\\.150\\.1|0\\.132\\.0)$/",
       "minimumReleaseAge": "0 days"
+    },
+    {
+      "description": "ADOT image: ECR Public gives Renovate's docker datasource no release timestamps, and under the default minimumReleaseAgeBehaviour (timestamp-required) the tiered soak above would hold every ADOT bump as pending forever. Seen with renovate 44.164.9 in a local lookup run on 2026-10-16: v0.50.0 was marked pending for exactly that reason. timestamp-optional lets these bumps through with no soak; automerge stays off, so a human still reviews each PR.",
+      "matchDepNames": ["otel-collector-adot-image"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "description": "EC2 app configs (otel-*.json): automerge. These PRs target the repo's default branch (dev) after the prod-tier soak, and the new version reaches prod only with the app's next release. internalChecksAsSuccess because some of these repos run no CI on the PR, so Renovate's own stability check is the only one, and by default Renovate does not count it. Merges only on weekday working hours, when someone is around to notice.",
